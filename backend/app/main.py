@@ -1,5 +1,6 @@
 
 import logging
+import os
 
 from fastapi import FastAPI, File, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
@@ -35,11 +36,22 @@ app = FastAPI(
     version="1.0.0",
 )
 
+
+# CORS configuration:
+# Keep local development enabled and allow the deployed frontend
+# through the FRONTEND_URL environment variable in Render.
+frontend_url = os.getenv("FRONTEND_URL", "").strip().rstrip("/")
+
+allowed_origins = ["http://localhost:5173"]
+
+if frontend_url and frontend_url not in allowed_origins:
+    allowed_origins.append(frontend_url)
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173"],
+    allow_origins=allowed_origins,
     allow_credentials=True,
-    allow_methods=["GET", "POST", "DELETE"],
+    allow_methods=["GET", "POST", "DELETE", "OPTIONS"],
     allow_headers=["Content-Type", "Authorization"],
 )
 
@@ -132,7 +144,7 @@ def database_health_check():
 
 @app.get("/api/datasets")
 def get_saved_datasets():
-    """List all uploaded datasets saved on this computer."""
+    """List uploaded datasets saved on the server."""
     try:
         return {
             "status": "success",
@@ -149,10 +161,9 @@ def get_saved_datasets():
         ) from exc
 
 
-
 @app.post("/api/upload")
 async def upload_dataset(file: UploadFile = File(...)):
-    """Save a validated CSV or XLSX dataset persistently."""
+    """Save a validated CSV or XLSX dataset."""
 
     try:
         filename = file.filename or ""
@@ -176,7 +187,6 @@ async def upload_dataset(file: UploadFile = File(...)):
             file_content=content,
         )
 
-        # Save the original file and its metadata to persistent storage.
         dataset_id = store_dataset(
             filename,
             dataframe,
@@ -223,7 +233,10 @@ async def upload_dataset(file: UploadFile = File(...)):
         ) from exc
 
     except OSError as exc:
-        logger.error("Dataset storage failed: %s", type(exc).__name__)
+        logger.error(
+            "Dataset storage failed: %s",
+            type(exc).__name__,
+        )
 
         raise HTTPException(
             status_code=500,
@@ -236,7 +249,7 @@ async def upload_dataset(file: UploadFile = File(...)):
 
 @app.delete("/api/upload/{dataset_id}")
 def delete_uploaded_dataset(dataset_id: str):
-    """Permanently delete an uploaded dataset and its saved metadata."""
+    """Permanently delete an uploaded dataset and its metadata."""
 
     try:
         delete_dataset(dataset_id)
