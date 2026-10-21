@@ -10,16 +10,28 @@ database_url = URL.create(
     drivername="mysql+pymysql",
     username=os.environ["DB_USER"],
     password=os.environ["DB_PASSWORD"],
-    host=os.getenv("DB_HOST", "localhost"),
-    port=int(os.getenv("DB_PORT", "3306")),
+    host=os.environ["DB_HOST"],
+    port=int(os.environ.get("DB_PORT", "3306")),
     database=os.environ["DB_NAME"],
     query={"charset": "utf8mb4"},
 )
 
+connect_args = {
+    "connect_timeout": 10,
+}
+
+# Enable certificate-verified SSL when an Aiven CA certificate is configured.
+ssl_ca = os.getenv("DB_SSL_CA")
+if ssl_ca:
+    connect_args["ssl"] = {
+        "ca": ssl_ca,
+        "check_hostname": True,
+    }
+
 engine = create_engine(
     database_url,
     pool_pre_ping=True,
-    connect_args={"connect_timeout": 5},
+    connect_args=connect_args,
 )
 
 
